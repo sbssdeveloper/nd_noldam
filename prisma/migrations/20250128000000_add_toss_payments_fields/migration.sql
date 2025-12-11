@@ -1,0 +1,14 @@
+-- AlterTable
+ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "paymentKey" TEXT,
+ADD COLUMN IF NOT EXISTS "orderId" TEXT,
+ADD COLUMN IF NOT EXISTS "tossStatus" TEXT,
+ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT,
+ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "failureReason" TEXT,
+ADD COLUMN IF NOT EXISTS "customerName" TEXT,
+ADD COLUMN IF NOT EXISTS "customerEmail" TEXT,
+ADD COLUMN IF NOT EXISTS "customerPhone" TEXT;
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "payments_orderId_key" ON "payments"("orderId");
+

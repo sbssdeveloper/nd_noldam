@@ -1,0 +1,567 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  phoneNumber            String               @unique
+  nickname               String?              @unique @map("nickname")
+  statusMessage          String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  profileImage           String?
+  city                   String?
+  province               String?
+  lastLogin              DateTime?
+  status                 String               @default("active")
+  id                     Int                  @id @default(autoincrement())
+  categories             Int[]                @map("categories")
+  communityRating        CommunityRating?
+  role                   String               @default("user")
+  activeCommunityBadgeId Int?
+  activeCommunityBadge   Badge?               @relation("UserActiveBadge", fields: [activeCommunityBadgeId], references: [id], onDelete: SetNull)
+  following              Follower[]           @relation("UserFollowing")
+  followers              Follower[]           @relation("UserFollowers")
+  meetingLikes           MeetingLikes[]
+  participants           MeetingParticipant[]
+  meetings               Meeting[]
+  postComments           PostComment[]
+  postLikes              PostLikes[]
+  posts                  Post[]
+  profile                Profile?
+  userBadges             UserBadge[]
+  notifications          UserNotification[]
+  mentions               UserMention[]        @relation("UserMentions")
+  commentLikes           CommentLikes[]
+  reviews                MeetingReview[]
+  chatRooms              ChatParticipant[]
+  chatMessages           ChatMessage[]
+  blockedUsers           BlockedUser[]        @relation("UserBlocked")
+  blockedBy              BlockedUser[]        @relation("UserBlockedBy")
+
+  @@map("users")
+}
+
+model Province {
+  id     Int    @id @default(autoincrement())
+  name   String
+  cities City[]
+
+  @@map("provinces")
+}
+
+model City {
+  id         Int      @id @default(autoincrement())
+  name       String
+  provinceId Int
+  provinces  Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+
+  @@map("cities")
+}
+
+model OTP {
+  phoneNumber String
+  code        String
+  expiresAt   DateTime
+  isUsed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+
+  @@map("otps")
+}
+
+model Profile {
+  fullName         String?
+  dob              DateTime?
+  email            String?
+  nationality      String?
+  gender           String?
+  description      String?
+  province         String?
+  city             String?
+  terms            Boolean   @default(false)
+  ageVerified      Boolean   @default(false)
+  agreePersonal    Boolean   @default(false)
+  agreeThirdParty  Boolean   @default(false)
+  verifiedAt       DateTime?
+  publicVisibility Boolean   @default(true)
+  // Individual tab privacy settings
+  feedPrivacy      Boolean   @default(true) // 피드 tab privacy
+  meetingsPrivacy  Boolean   @default(true) // 모임 tab privacy  
+  badgesPrivacy    Boolean   @default(true) // 배지 tab privacy
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  id               Int       @id @default(autoincrement())
+  userId           Int       @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Meeting {
+  activities        String[]
+  categories        String[]
+  minNum            Int
+  maxNum            Int
+  fee               Decimal              @db.Decimal(10, 2)
+  hasFee            Boolean              @default(false)
+  feeBreakdown      Json? // Store fee breakdown as JSON
+  roadNameAddress   String // 도로명/지번 주소
+  detailedAddress   String // 상세주소
+  meetingTime       DateTime
+  meetingName       String
+  meetingBackground String?
+  description       String? // Combined description and rich content
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  id                Int                  @id @default(autoincrement())
+  userId            Int
+  likes             MeetingLikes[]
+  participants      MeetingParticipant[]
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules         MeetingSchedule[] // Relation to meeting schedules
+
+  // New fields for dynamic content and recurrence
+  meetingFrequency         String    @default("none") // none | weekly | biweekly | monthly (lowercase)
+  duration                 Int       @default(60)
+  recurrenceEndOn          DateTime?
+  meetingConsentPersonal   Boolean   @default(false) // 개인정보 처리 동의
+  meetingConsentGuidelines Boolean   @default(false) // 모임개설 가이드라인 동의
+
+  // Meeting status management
+  status         String @default("draft") // draft | approved | pending | reject | completed
+  parent_meeting Int? // Reference to parent meeting for recurring meetings
+
+  // Self-referential relationship for parent meetings
+  meetings       Meeting?  @relation("meetingsTomeetings", fields: [parent_meeting], references: [id], onUpdate: NoAction)
+  other_meetings Meeting[] @relation("meetingsTomeetings")
+
+  reviews          MeetingReview[]
+  chatRooms        ChatRoom[] // Group chats linked to this meeting
+  clubLinkMessages ChatMessage[]   @relation("ClubLinkMessages") // Messages that link to this meeting
+
+  @@index([meetingTime])
+  @@index([userId, createdAt(sort: Desc)], map: "idx_meetings_userId_createdAt")
+  @@index([parent_meeting])
+  @@index([status])
+  @@map("meetings")
+}
+
+// One row per parent meeting to track next occurrence
+model MeetingSchedule {
+  id                   String    @id @default(uuid())
+  meetingId            Int
+  scheduleType         String
+  parentMeetingStartOn DateTime
+  nextMeetingOn        DateTime
+  recurrenceEndOn      DateTime?
+  timezone             String    @default("Asia/Seoul")
+  status               String    @default("active")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([nextMeetingOn])
+  @@index([status])
+  @@map("meeting_schedules")
+}
+
+model MeetingReview {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  meetingId Int
+  rating    Int // 1-5 star rating (required)
+  title     String? // Optional title
+  content   String // The actual review text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  // Ensure one review per user per meeting
+  @@unique([userId, meetingId])
+  @@map("meeting_reviews")
+}
+
+model MeetingParticipant {
+  joinedOn      DateTime @default(now())
+  paymentStatus String   @default("pending")
+  id            Int      @id @default(autoincrement())
+  meetingId     Int
+  userId        Int
+  paymentId     Int?
+  meeting       Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  payment       Payment? @relation(fields: [paymentId], references: [id])
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("meeting_participants")
+}
+
+model Payment {
+  type            String
+  refNo           String               @unique
+  status          String               @default("pending")
+  date            DateTime             @default(now())
+  amount          Decimal              @db.Decimal(10, 2)
+  id              Int                  @id @default(autoincrement())
+  participants    MeetingParticipant[]
+  paymentKey      String?              // Toss payment key
+  orderId         String?              @unique // Toss order ID
+  tossStatus      String?              // Toss payment status (READY, DONE, CANCELED, etc.)
+  paymentMethod   String?              // Payment method (카드, 계좌이체, etc.)
+  approvedAt      DateTime?            // When payment was approved
+  failureReason   String?              // Failure reason if payment failed
+  customerName    String?              // Customer name
+  customerEmail   String?              // Customer email
+  customerPhone   String?              // Customer phone
+
+  @@map("payments")
+}
+
+model UserNotification {
+  id                  Int      @id @default(autoincrement())
+  userId              Int
+  notificationType    String
+  notificationDetails String
+  place               String?
+  isRead              Boolean  @default(false)
+  priority            Int      @default(1) // 1=high, 2=medium, 3=low
+  category            String   @default("general") // meeting, social, achievement, payment, system
+  relatedId           Int? // ID of related post/meeting/user
+  relatedType         String? // post, meeting, user, badge
+  actionUrl           String? // Deep link to relevant page
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_notifications")
+}
+
+model PostSection {
+  sectionNo   Int
+  sectionType String
+  content     String
+  id          Int    @id @default(autoincrement())
+  postId      Int
+  post        Post   @relation(fields: [postId], references: [id])
+
+  @@map("post_sections")
+}
+
+model PostComment {
+  content         String
+  level           Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  id              Int            @id @default(autoincrement())
+  postId          Int
+  userId          Int
+  parentCommentId Int?
+  restrictionUntil DateTime?     @map("restriction_until") @db.Timestamp(6)
+  post            Post           @relation(fields: [postId], references: [id])
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes           CommentLikes[]
+
+  @@map("post_comments")
+}
+
+model CommentLikes {
+  id        Int         @id @default(autoincrement())
+  commentId Int
+  userId    Int
+  createdAt DateTime    @default(now())
+  comment   PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("comment_likes")
+}
+
+model Tag {
+  tag    String
+  id     Int    @id @default(autoincrement())
+  postId Int
+  post   Post   @relation(fields: [postId], references: [id])
+
+  @@map("tags")
+}
+
+model HomePageSettings {
+  title       String
+  content     String
+  image       String?
+  scope       String   @default("public") // public | categories
+  meetings    Int[]    @default([])
+  categories  Int[]    @default([])
+  status      String   @default("active")
+  createDate  DateTime @default(now())
+  lastUpdated DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+
+  @@map("home_page_settings")
+}
+
+model TypeSettings {
+  type             String
+  title            String
+  description      String?
+  image            String?
+  deactivationDate DateTime?
+  scope            String    @default("public")
+  status           String    @default("active")
+  createDate       DateTime  @default(now())
+  lastUpdated      DateTime  @updatedAt
+  id               Int       @id @default(autoincrement())
+  meetings         Int[]
+  categories       Int[]     @default([])
+
+  @@map("type_settings")
+}
+
+model Activity {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  image       String?
+
+  @@map("activities")
+}
+
+model Category {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  image       String?
+
+  @@map("categories")
+}
+
+model Genre {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  image       String?
+  meetings    Int[]   @default([])
+
+  @@map("genres")
+}
+
+model MeetingLikes {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  meetingId Int
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, meetingId])
+  @@map("meeting_likes")
+}
+
+model Post {
+  id        Int           @id @default(autoincrement())
+  title     String?
+  content   String?
+  imageUrl  String?
+  isPublic  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  userId    Int
+  restrictionUntil DateTime?     @map("restriction_until") @db.Timestamp(6)
+  comments  PostComment[]
+  likes     PostLikes[]
+  sections  PostSection[]
+  tags      Tag[]
+  mentions  UserMention[]
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("posts")
+}
+
+model PostLikes {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@map("post_likes")
+}
+
+model Badge {
+  id                  Int         @id @default(autoincrement())
+  name                String
+  description         String
+  imageUrl            String
+  badgeType           String // 'regular' or 'community_rating'
+  condition_meetings  Int? // Number of meetings required
+  condition_likes     Int? // Number of likes required
+  condition_posts     Int? // Number of posts required
+  condition_followers Int? // Number of followers required
+  isActive            Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  userBadges          UserBadge[]
+  activeUsers         User[]      @relation("UserActiveBadge")
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id       Int      @id @default(autoincrement())
+  userId   Int
+  badgeId  Int
+  earnedAt DateTime @default(now())
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+model CommunityRating {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @unique
+  level          String
+  points         Int      @default(0)
+  followersCount Int      @default(0)
+  postsCount     Int      @default(0)
+  meetingsCount  Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("community_ratings")
+}
+
+model UserMention {
+  id              Int      @id @default(autoincrement())
+  postId          Int
+  mentionedUserId Int
+  createdAt       DateTime @default(now())
+  post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mentionedUser   User     @relation("UserMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@map("user_mentions")
+}
+
+model Follower {
+  startedOn DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  following Int
+
+  user          User @relation("UserFollowing", fields: [userId], references: [id], onDelete: Cascade)
+  followingUser User @relation("UserFollowers", fields: [following], references: [id], onDelete: Cascade)
+
+  @@unique([userId, following], map: "followers_userId_following_key")
+  @@map("followers")
+}
+
+// ==========================================
+// CHAT SYSTEM MODELS
+// ==========================================
+
+model ChatRoom {
+  id                   Int      @id @default(autoincrement())
+  type                 String // 'user' or 'group'
+  name                 String? // For group chats
+  avatar               String? // For group chats
+  meetingId            Int? // Link to Meeting (for club/group chats)
+  createdBy            Int // User ID who created
+  allowParticipantChat Boolean  @default(true) // For group chats - allows participants to chat
+  lastMessageId        Int?
+  lastActivity         DateTime @default(now())
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  meeting      Meeting?          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  messages     ChatMessage[]
+  participants ChatParticipant[]
+
+  @@index([createdBy, type])
+  @@index([meetingId])
+  @@index([lastActivity])
+  @@map("chat_rooms")
+}
+
+model ChatParticipant {
+  id         Int       @id @default(autoincrement())
+  roomId     Int
+  userId     Int
+  role       String    @default("participant") // 'host' or 'participant'
+  joinedAt   DateTime  @default(now())
+  leftAt     DateTime?
+  lastReadAt DateTime? // For unread count calculation
+  isActive   Boolean   @default(true)
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId, isActive])
+  @@map("chat_participants")
+}
+
+model ChatMessage {
+  id            Int     @id @default(autoincrement())
+  roomId        Int
+  senderId      Int
+  content       String // Text content (empty for attachments/club links)
+  type          String // 'text', 'image', 'file', 'club'
+  attachmentUrl String? // For images/files
+  fileName      String? // Original filename
+  fileSize      Int? // File size in bytes
+
+  // Club link message fields
+  clubMeetingId Int? // Link to Meeting (for type='club')
+
+  // Threading support
+  replyToId   Int? // Self-reference for replies
+  threadCount Int  @default(0) // Count of replies
+
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room        ChatRoom      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender      User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  clubMeeting Meeting?      @relation("ClubLinkMessages", fields: [clubMeetingId], references: [id])
+  replyTo     ChatMessage?  @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies     ChatMessage[] @relation("MessageReplies")
+
+  @@index([roomId, createdAt])
+  @@index([senderId])
+  @@index([replyToId])
+  @@index([clubMeetingId])
+  @@map("chat_messages")
+}
+
+model BlockedUser {
+  id        Int      @id @default(autoincrement())
+  blockerId Int // User who blocked
+  blockedId Int // User who is blocked
+  blockedAt DateTime @default(now())
+
+  blocker User @relation("UserBlocked", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+  @@map("blocked_users")
+}

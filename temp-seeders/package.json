@@ -1,0 +1,29 @@
+{
+    "name": "temp-seeders",
+    "version": "1.0.0",
+    "description": "Temporary database seeders for ND Website",
+    "main": "seed-all.ts",
+    "scripts": {
+        "seed": "tsx seed-all.ts",
+        "seed:activities": "tsx activities.seed.ts",
+        "seed:categories": "tsx categories.seed.ts",
+        "seed:users": "tsx users.seed.ts",
+        "seed:profiles": "tsx profiles.seed.ts",
+        "seed:meetings": "tsx meetings.seed.ts",
+        "seed:followers": "tsx followers.seed.ts",
+        "seed:payments": "tsx payments.seed.ts",
+        "seed:participants": "tsx meeting-participants.seed.ts",
+        "seed:notifications": "tsx user-notifications.seed.ts",
+        "seed:posts": "tsx posts.seed.ts",
+        "seed:comments": "tsx post-comments.seed.ts",
+        "seed:tags": "tsx tags.seed.ts",
+        "seed:otp": "tsx otp.seed.ts",
+        "seed:type-settings": "tsx type-settings.seed.ts",
+        "seed:genres": "tsx genres.seed.ts"
+    },
+    "devDependencies": {
+        "@prisma/client": "^5.0.0",
+        "tsx": "^4.0.0",
+        "typescript": "^5.0.0"
+    }
+}

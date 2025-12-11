@@ -1,0 +1,120 @@
+import { apiService } from './apiService';
+import { API_CONFIG } from '@/apiConfigs/api';
+
+export interface UserProfile {
+  id: number;
+  nickname: string;
+  email: string;
+  profileImage?: string;
+  statusMessage?: string;
+  activeCommunityBadge?: {
+    id: number;
+    name: string;
+    imageUrl: string;
+    condition_followers: number;
+  };
+  followers?: User[];
+  following?: User[];
+  stats?: {
+    followersCount: number;
+    followingCount: number;
+    meetingsCreatedCount: number;
+    meetingsJoinedCount: number;
+  };
+}
+
+export interface User {
+  id: number | string;
+  phoneNumber?: string;
+  nickname: string;
+  profileImage?: string;
+  statusMessage?: string;
+  province?: string;
+  city?: string;
+  categories?: number[];
+  level?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  location?: string;
+  activeCommunityBadge?: {
+    id: number;
+    name: string;
+    imageUrl: string;
+    condition_followers: number;
+  };
+}
+
+export interface UserSummary {
+  activities: any[];
+  notifications: any[];
+  mainBadge: any;
+}
+
+export class UserApiService {
+  // Get user profile
+  async getProfile(): Promise<UserProfile | null> {
+    const response = await apiService.get<UserProfile>(API_CONFIG.ENDPOINTS.PROFILE);
+    return response.success ? response.data! : null;
+  }
+
+  // Update user profile
+  async updateProfile(data: Partial<UserProfile>): Promise<boolean> {
+    const response = await apiService.put(API_CONFIG.ENDPOINTS.PROFILE_UPDATE, data);
+    return response.success;
+  }
+
+  // Get user summary
+  async getSummary(): Promise<UserSummary | null> {
+    const response = await apiService.get<UserSummary>(API_CONFIG.ENDPOINTS.SUMMARY);
+    return response.success ? response.data! : null;
+  }
+
+
+  // Update profile privacy (legacy - global privacy)
+  async updateProfilePrivacy(publicVisibility: boolean): Promise<boolean> {
+    const response = await apiService.put(API_CONFIG.ENDPOINTS.PROFILE_UPDATE, { publicVisibility });
+    return response.success;
+  }
+
+  // Update individual tab privacy
+  async updateTabPrivacy(tabType: 'feed' | 'meetings' | 'badges', privacy: boolean): Promise<boolean> {
+    const payload: any = { tabType }
+    
+    if (tabType === 'feed') {
+      payload.feedPrivacy = privacy
+    } else if (tabType === 'meetings') {
+      payload.meetingsPrivacy = privacy
+    } else if (tabType === 'badges') {
+      payload.badgesPrivacy = privacy
+    }
+    
+    const response = await apiService.put(API_CONFIG.ENDPOINTS.PROFILE_UPDATE, payload);
+    return response.success;
+  }
+
+  // Follow a user
+  async followUser(userId: number): Promise<{ followingCount: number; followersCount: number } | null> {
+    const response = await apiService.post(API_CONFIG.ENDPOINTS.FOLLOW, { userId });
+    return response.success ? response.data! : null;
+  }
+
+  // Unfollow a user
+  async unfollowUser(userId: number): Promise<{ followingCount: number; followersCount: number } | null> {
+    const response = await apiService.delete(`${API_CONFIG.ENDPOINTS.UNFOLLOW}?userId=${userId}`);
+    return response.success ? response.data! : null;
+  }
+
+  // Check follow status
+  async getFollowStatus(userId: number): Promise<boolean | null> {
+    const endpoint = API_CONFIG.ENDPOINTS.FOLLOW_STATUS(userId.toString());
+    const response = await apiService.get(endpoint);
+    return response.success ? response.data.data.isFollowing : null;
+  }
+
+  // Clear user-related cache
+  clearCache(): void {
+    apiService.clearCache('users');
+  }
+}
+
+export const userApi = new UserApiService();

@@ -1,0 +1,77 @@
+[
+    {
+        "id": 1,
+        "city": "서울특별시",
+        "district": "강남구",
+        "roadName": "테헤란로",
+        "lotNumber": "427",
+        "buildingName": "메이플타워",
+        "postalCode": "06160",
+        "units": [
+            "10F",
+            "11F",
+            "1201호",
+            "1503호"
+        ]
+    },
+    {
+        "id": 2,
+        "city": "서울특별시",
+        "district": "종로구",
+        "roadName": "종로",
+        "lotNumber": "45",
+        "buildingName": "제이드빌딩",
+        "postalCode": "03154",
+        "units": [
+            "2F",
+            "3F",
+            "401호",
+            "502호"
+        ]
+    },
+    {
+        "id": 3,
+        "city": "부산광역시",
+        "district": "해운대구",
+        "roadName": "해운대해변로",
+        "lotNumber": "35",
+        "buildingName": "오션뷰",
+        "postalCode": "48093",
+        "units": [
+            "101호",
+            "102호",
+            "18F",
+            "1902호"
+        ]
+    },
+    {
+        "id": 4,
+        "city": "인천광역시",
+        "district": "남동구",
+        "roadName": "인주대로",
+        "lotNumber": "776",
+        "buildingName": "스카이파크",
+        "postalCode": "21558",
+        "units": [
+            "402호",
+            "5F",
+            "602호",
+            "703호"
+        ]
+    },
+    {
+        "id": 5,
+        "city": "대구광역시",
+        "district": "수성구",
+        "roadName": "범어로",
+        "lotNumber": "200",
+        "buildingName": "센트럴플레이스",
+        "postalCode": "42169",
+        "units": [
+            "B1",
+            "1F",
+            "2F",
+            "301호"
+        ]
+    }
+]
