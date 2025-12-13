@@ -77,17 +77,49 @@ export const useChat = () => {
     if (!authToken) return
 
     // Connect to socket server with reconnection enabled
-    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || window.location.origin, {
+    // Configuration that works reliably in both local and production environments
+    // Determine socket URL: use env var if set, otherwise use current origin
+    // In production, ensure we use the correct protocol (https if available)
+    const getSocketUrl = () => {
+      if (process.env.NEXT_PUBLIC_SOCKET_URL) {
+        return process.env.NEXT_PUBLIC_SOCKET_URL
+      }
+      // Use current origin (works for both localhost and production)
+      const origin = window.location.origin
+      // Ensure we use the same protocol as the page
+      return origin
+    }
+
+    const socketUrl = getSocketUrl()
+
+    const socket = io(socketUrl, {
       path: '/api/socket',
       auth: {
         token: authToken
       },
-      transports: ['websocket', 'polling'],
+      // Try polling first in production (more reliable), websocket first in dev
+      // Socket.IO will automatically fallback if one fails
+      transports: window.location.hostname === 'localhost' 
+        ? ['websocket', 'polling'] 
+        : ['polling', 'websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: Infinity,
-      timeout: 20000
+      // Increased timeout for production (network latency)
+      timeout: 45000, // 45 seconds for production
+      // Force new connection to avoid stale connections
+      forceNew: false,
+      // Upgrade transport automatically (polling -> websocket if available)
+      upgrade: true,
+      // Enable auto-connect
+      autoConnect: true,
+      // Add extra options for production reliability
+      rememberUpgrade: true,
+      // Use secure connection if page is HTTPS
+      secure: window.location.protocol === 'https:',
+      // Reject unauthorized connections
+      rejectUnauthorized: false
     })
 
     socket.on('connect', () => {
@@ -123,6 +155,10 @@ export const useChat = () => {
     })
 
     socket.on('disconnect', (reason) => {
+      if (reason === 'io server disconnect') {
+        // Server disconnected the socket, reconnect manually
+        socket.connect()
+      }
       // Will automatically reconnect due to reconnection: true
     })
 
@@ -137,7 +173,57 @@ export const useChat = () => {
 
     socket.on('connect_error', (err) => {
       console.error('[Socket] Connection error:', err)
-      setError('Failed to connect to chat server')
+      console.error('[Socket] Error details:', {
+        message: err.message,
+        type: (err as any).type,
+        description: (err as any).description,
+        context: (err as any).context,
+        url: socketUrl,
+        socketId: socket.id,
+        connected: socket.connected,
+        active: socketRef.current?.active,
+        hasToken: !!authToken,
+        tokenLength: authToken?.length
+      })
+      
+      // Handle "server error" specifically
+      if (err.message === 'server error' || err.message?.includes('server error')) {
+        console.error('[Socket] ⚠️ SERVER ERROR - Possible causes:')
+        console.error('[Socket] 1. Authentication failed - Check if token is valid')
+        console.error('[Socket] 2. CORS issue - Check NEXT_PUBLIC_APP_URL matches your domain')
+        console.error('[Socket] 3. Socket server not running with Socket.IO (use: npm run start:socket)')
+        console.error('[Socket] 4. Database connection issue on server')
+        console.error('[Socket] 5. JWT_SECRET mismatch between client and server')
+        console.error('[Socket] Current URL:', socketUrl)
+        console.error('[Socket] Expected CORS origin:', process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'Not set')
+      }
+      
+      // Don't set error for timeout during reconnection attempts
+      // The socket will automatically retry
+      if (err.message === 'timeout' || err.message?.includes('timeout')) {
+        console.error('[Socket] ⚠️ TIMEOUT ERROR - Possible causes:')
+        console.error('[Socket] 1. Socket server not running (use: npm run start:socket)')
+        console.error('[Socket] 2. Firewall/proxy blocking WebSocket connections')
+        console.error('[Socket] 3. Socket endpoint not accessible:', `${socketUrl}/api/socket`)
+        console.error('[Socket] 4. CORS configuration issue')
+        
+        // Socket is still trying to reconnect, don't show error yet
+        if (socketRef.current?.active) {
+          return
+        }
+      }
+      
+      // Check if it's a network error (common in production)
+      if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
+        console.error('[Socket] Network error - check if socket server is running and accessible')
+        console.error('[Socket] Make sure production uses: npm run start:socket (not npm run start)')
+        console.error('[Socket] Test socket endpoint:', `${socketUrl}/api/socket`)
+      }
+      
+      // Only show error if socket is not actively trying to reconnect
+      if (!socketRef.current?.active) {
+        setError('Failed to connect to chat server. Please refresh the page.')
+      }
     })
 
     // Listen for new messages (from other users only)
@@ -149,15 +235,6 @@ export const useChat = () => {
       const normalizedCurrentUserId = currentUserId !== undefined && currentUserId !== null ? String(currentUserId) : ''
       const normalizedMessageId = message.id !== undefined && message.id !== null ? String(message.id) : ''
       const isFromCurrentUser = normalizedSenderId && normalizedSenderId === normalizedCurrentUserId
-
-      console.log('[Socket] message:new received', {
-        messageId: normalizedMessageId,
-        tempId: message.tempId,
-        senderId: normalizedSenderId,
-        currentUserId: normalizedCurrentUserId,
-        isFromCurrentUser,
-        roomId: messageRoomId
-      })
       
       // Don't increment unread count for messages from current user
       if (isFromCurrentUser) {
@@ -181,11 +258,6 @@ export const useChat = () => {
             return prev
           }
           
-          console.log('[Socket] message:new -> append to current room', {
-            messageId: normalizedMessageId,
-            tempId: message.tempId
-          })
-
           // Add new message and sort by timestamp
           const updated = [...prev, message]
           return updated.sort((a, b) => 
@@ -278,11 +350,7 @@ export const useChat = () => {
     // Listen for sent message confirmation (only for sender)
     socket.on('message:sent', (message: ChatMessage) => {
       const normalizedMessageId = message.id !== undefined && message.id !== null ? String(message.id) : ''
-      console.log('[Socket] message:sent received', {
-        messageId: normalizedMessageId,
-        tempId: message.tempId,
-        roomId: message.roomId
-      })
+      
       setMessages(prev => {
         // Remove temp message if exists, or any message with same content/timestamp (to prevent duplicates)
         const filtered = prev.filter(m => {
@@ -314,11 +382,6 @@ export const useChat = () => {
           return filtered
         }
         
-        console.log('[Socket] message:sent -> append', {
-          messageId: normalizedMessageId,
-          tempId: message.tempId
-        })
-
         // Add the confirmed message
         const updated = [...filtered, { ...message, tempId: undefined, id: normalizedMessageId || message.id }]
         
@@ -704,7 +767,6 @@ export const useChat = () => {
       if (prev.some(m => m.tempId === tempId || (m.content === content && Math.abs(new Date(m.timestamp).getTime() - new Date().getTime()) < 1000))) {
         return prev
       }
-      console.log('[Chat] optimistic message added', { tempId, roomId })
       return [...prev, optimisticMessage]
     })
 

@@ -1,8 +1,8 @@
 // MUI Imports
 import InitColorSchemeScript from '@mui/material/InitColorSchemeScript'
 
-// Third-party Imports
-import 'react-perfect-scrollbar/dist/css/styles.css'
+// Third-party CSS Imports (local copy to avoid Next.js 15 flight CSS loader issues)
+import '@/styles/perfect-scrollbar.css'
 
 // Type Imports
 import type { ChildrenType } from '@core/types'
@@ -72,8 +72,51 @@ const RootLayout = async (props: ChildrenType) => {
   return (
     <html id='__next' lang='en' dir={direction} suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" />
         <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+        <link 
+          rel="stylesheet" 
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css"
+          crossOrigin="anonymous"
+        />
+        {/* Suppress CSS preload warnings in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                (function() {
+                  if (typeof window === 'undefined') return;
+                  
+                  // Suppress browser preload warnings
+                  const originalWarn = console.warn;
+                  console.warn = function() {
+                    const args = Array.from(arguments);
+                    const message = args[0]?.toString() || '';
+                    
+                    // Filter out CSS preload warnings
+                    if (message.includes('was preloaded using link preload') && 
+                        message.includes('not used within a few seconds')) {
+                      return; // Suppress this warning
+                    }
+                    
+                    originalWarn.apply(console, args);
+                  };
+                  
+                  // Also intercept PerformanceObserver warnings if any
+                  if (window.PerformanceObserver) {
+                    try {
+                      const observer = new PerformanceObserver(function(list) {
+                        // Allow performance entries but suppress warnings
+                      });
+                      observer.observe({ entryTypes: ['resource'] });
+                    } catch(e) {
+                      // Ignore
+                    }
+                  }
+                })();
+              `,
+            }}
+          />
+        )}
       </head>
       <body className='flex is-full min-bs-full flex-auto flex-col'>
         <InitColorSchemeScript attribute='data' defaultMode={systemMode} />

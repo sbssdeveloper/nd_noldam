@@ -46,10 +46,10 @@ export async function GET(request: NextRequest) {
       // - "pending", "reject", "completed", "draft" → visible only to creator
       whereClause.AND.push({
         OR: [
-          { status: 'approved' }, // Show approved meetings to everyone
-          // Show pending/reject/completed/draft only to creator
+          { status: { in: ['approved', 'completed'] } }, // Show approved and completed meetings to everyone
+          // Show pending/reject/draft only to creator
           ...(currentUserId ? [
-            { status: { in: ['pending', 'reject', 'completed', 'draft'] }, userId: currentUserId }
+            { status: { in: ['pending', 'reject', 'draft'] }, userId: currentUserId }
           ] : [])
         ]
       })

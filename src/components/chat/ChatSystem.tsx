@@ -4504,6 +4504,7 @@ const ChatSystem: React.FC<ChatSystemProps> = ({ isOpen, onViewChange, initialRo
       {/* Click outside to deselect all messages */}
       {(selectedMessage || selectedMessages.size > 0 || messageMenuAnchor) && !isSelectionMode && (
         <Box
+          data-nextjs-scroll-disabled="true"
           sx={{
             position: 'fixed',
             top: 0,

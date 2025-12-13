@@ -10,47 +10,170 @@ export function initializeSocketServer(httpServer: HTTPServer) {
     return io
   }
 
+  // Get allowed origins for CORS
+  // Support both NEXT_PUBLIC_APP_URL and NEXT_PUBLIC_SITE_URL
+  // Dynamically allow both localhost (development) and production URLs
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL
+  
+  // Dynamic CORS origin checker - allows both localhost:3010 and production
+  const corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true)
+    }
+    
+    // Allow localhost:3010 specifically for development
+    if (origin === 'http://localhost:3010' || origin === 'http://127.0.0.1:3010') {
+      return callback(null, true)
+    }
+    
+    // Allow other localhost ports for flexibility (development)
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true)
+    }
+    
+    // Allow production URL from environment variable
+    if (appUrl && origin === appUrl) {
+      return callback(null, true)
+    }
+    
+    // Allow all if no app URL is set (development mode)
+    if (!appUrl) {
+      return callback(null, true)
+    }
+    
+    // Reject other origins
+    callback(new Error('Not allowed by CORS'))
+  }
+
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.NEXT_PUBLIC_APP_URL || '*',
+      origin: corsOrigin,
       methods: ['GET', 'POST'],
-      credentials: true
+      credentials: true,
+      // Allow all headers for production compatibility
+      allowedHeaders: ['Authorization', 'Content-Type']
     },
-    path: '/api/socket'
+    path: '/api/socket',
+    // Increased timeout configurations for production (network latency, load balancers, etc.)
+    connectTimeout: 45000, // 45 seconds - increased for production
+    pingTimeout: 45000, // 45 seconds - how long to wait for pong
+    pingInterval: 20000, // 20 seconds - how often to ping clients (less frequent for production)
+    // Allow more time for authentication middleware
+    allowEIO3: true,
+    // Increase max HTTP buffer size for large messages
+    maxHttpBufferSize: 1e8, // 100MB
+    // Support both transports for maximum compatibility
+    // Polling first for production (more reliable through proxies/load balancers)
+    transports: ['polling', 'websocket'],
+    // Upgrade timeout for transport upgrades
+    upgradeTimeout: 15000, // Increased for production
+    // Additional production settings
+    allowRequest: (req, callback) => {
+      // Allow all requests (CORS is handled above)
+      callback(null, true)
+    }
   })
 
   // Authentication middleware
   io.use(async (socket, next) => {
+    const origin = socket.handshake.headers.origin
+    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '')
+    
     try {
-      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '')
-      
       if (!token) {
+        console.error('[Socket] ❌ No token provided')
         return next(new Error('Authentication error: No token provided'))
       }
 
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'development-jwt-secret-key-consistent-across-environments')
-      const { payload } = await jwtVerify(token, secret)
-      
-      const userId = parseInt((payload.uid || payload.userId) as string)
-      
-      if (!userId || Number.isNaN(userId)) {
-        return next(new Error('Authentication error: Invalid token'))
-      }
+      // Set a timeout for authentication to prevent hanging
+      let authTimeout: NodeJS.Timeout | null = null
+      let authCompleted = false
 
-      // Verify user exists
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        authTimeout = setTimeout(() => {
+          if (!authCompleted) {
+            authCompleted = true
+            reject(new Error('Authentication timeout: Server took too long to respond'))
+          }
+        }, 30000) // 30 second timeout for auth
       })
 
-      if (!user) {
-        return next(new Error('Authentication error: User not found'))
-      }
+      try {
+        const authPromise = (async () => {
+          const jwtSecret = process.env.JWT_SECRET || 'development-jwt-secret-key-consistent-across-environments'
+          const secret = new TextEncoder().encode(jwtSecret)
+          
+          let payload: any
+          try {
+            const result = await jwtVerify(token, secret)
+            payload = result.payload
+          } catch (jwtError: any) {
+            console.error('[Socket] ❌ JWT verification failed:', {
+              error: jwtError.message,
+              code: jwtError.code,
+              name: jwtError.name
+            })
+            throw new Error(`JWT verification failed: ${jwtError.message}`)
+          }
+          
+          const userId = parseInt((payload.uid || payload.userId) as string)
+          
+          if (!userId || Number.isNaN(userId)) {
+            console.error('[Socket] ❌ Invalid user ID from token:', { uid: payload.uid, userId: payload.userId, parsed: userId })
+            throw new Error('Authentication error: Invalid user ID in token')
+          }
 
-      // Store user ID in socket data
-      socket.data.userId = userId
-      next()
-    } catch (error) {
-      next(new Error('Authentication error'))
+          // Verify user exists
+          let user
+          try {
+            user = await prisma.user.findUnique({
+              where: { id: userId }
+            })
+          } catch (dbError: any) {
+            console.error('[Socket] ❌ Database error:', dbError.message)
+            throw new Error(`Database error: ${dbError.message}`)
+          }
+
+          if (!user) {
+            console.error('[Socket] ❌ User not found in database:', userId)
+            throw new Error(`Authentication error: User ${userId} not found`)
+          }
+
+          // Store user ID in socket data
+          socket.data.userId = userId
+          return true
+        })()
+
+        // Race between auth and timeout
+        await Promise.race([authPromise, timeoutPromise])
+        
+        if (authTimeout) {
+          clearTimeout(authTimeout)
+        }
+        authCompleted = true
+        next()
+      } catch (error: any) {
+        if (authTimeout) {
+          clearTimeout(authTimeout)
+        }
+        authCompleted = true
+        const errorMessage = error?.message || 'Authentication error'
+        console.error('[Socket] ❌ Authentication failed:', {
+          message: errorMessage,
+          origin,
+          hasToken: !!token
+        })
+        // Return specific error message instead of generic "server error"
+        next(new Error(errorMessage))
+      }
+    } catch (error: any) {
+      console.error('[Socket] ❌ Authentication middleware error:', {
+        message: error?.message || error,
+        stack: error?.stack,
+        origin
+      })
+      next(new Error(error?.message || 'Authentication error'))
     }
   })
 

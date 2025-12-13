@@ -197,31 +197,48 @@ const LifestylePage = () => {
     }
   }, [isAuthenticated, user])
 
-  // Fetch trending posts - always fetch trending posts from other users
+  // Fetch ALL trending posts (not just top 10)
   React.useEffect(() => {
-    const fetchRemainingPosts = async () => {
+    const fetchAllTrendingPosts = async () => {
       try {
         setLoading(true)
-        const response = await FeedApiService.getTrendingPosts()
+        // Fetch both trending posts (top 10) and remaining posts (all others)
+        const [trendingResponse, remainingResponse] = await Promise.all([
+          FeedApiService.getTrendingPosts(),
+          FeedApiService.getRemainingTrendingPosts()
+        ])
 
-        if (response.success && response.data) {
-          const posts = Array.isArray(response.data) ? response.data : []
-          setRemainingPosts(posts)
+        let allPosts: TrendingPost[] = []
+        
+        // Combine top 10 trending posts with remaining posts
+        if (trendingResponse.success && trendingResponse.data) {
+          const trendingPosts = Array.isArray(trendingResponse.data) ? trendingResponse.data : []
+          allPosts = [...trendingPosts]
+        }
+        
+        if (remainingResponse.success && remainingResponse.data) {
+          const remainingPosts = Array.isArray(remainingResponse.data) ? remainingResponse.data : []
+          allPosts = [...allPosts, ...remainingPosts]
+        }
 
-          // Fetch follow status for all users in posts
-          await fetchFollowStatus(posts)
+        // Sort all posts by likes count (descending)
+        allPosts.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0))
+        
+        setRemainingPosts(allPosts)
+
+        // Fetch follow status for all users in posts (only if authenticated)
+        if (isAuthenticated && user) {
+          await fetchFollowStatus(allPosts)
         }
       } catch (error) {
-        // Error fetching remaining posts
+        // Error fetching posts
       } finally {
         setLoading(false)
       }
     }
 
-    // Always fetch trending posts when authenticated
-    if (isAuthenticated && user) {
-      fetchRemainingPosts()
-    }
+    // Fetch all posts (works for both authenticated and non-authenticated users)
+    fetchAllTrendingPosts()
   }, [isAuthenticated, user, fetchFollowStatus])
 
 

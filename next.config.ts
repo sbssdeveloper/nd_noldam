@@ -6,9 +6,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true
   },
-  eslint: {
-    ignoreDuringBuilds: true
-  },
   // Image optimization configuration
   images: {
     remotePatterns: [
@@ -39,16 +36,27 @@ const nextConfig: NextConfig = {
   // Build optimizations
   experimental: {
     optimizePackageImports: ['@mui/material', '@mui/icons-material', '@mui/lab'],
+    // Enable faster builds with optimized compilation
+    optimizeCss: false, // Disabled - requires 'critters' package
+    // Enable parallel builds
+    webpackBuildWorker: true,
   },
-  // Disable development indicators (static/dynamic toast)
-  devIndicators: {
-    buildActivity: false,
-    buildActivityPosition: 'bottom-right',
+  // Note: CSS preload warnings in development are expected behavior
+  // Next.js preloads CSS files during HMR (Hot Module Replacement) for performance.
+  // These warnings don't affect functionality and won't appear in production builds.
+  // The warnings occur because CSS files are preloaded but may not be used immediately
+  // during rapid code changes in development mode.
+  // Optimize CSS handling
+  compiler: {
+    // Remove console logs in production
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
   },
-  // Disable all caching
-  generateEtags: false,
+  // Enable compression (helps with build performance)
+  compress: true,
   poweredByHeader: false,
-  compress: false,
+  generateEtags: true, // Enable ETags for better caching
   redirects: async () => {
     return [
       // Custom routing handled by middleware
@@ -62,6 +70,16 @@ const nextConfig: NextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=86400, immutable',
+          },
+        ],
+      },
+      {
+        // Optimize CSS file caching to prevent preload warnings
+        source: '/_next/static/css/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },

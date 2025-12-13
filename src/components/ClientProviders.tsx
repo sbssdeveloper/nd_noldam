@@ -16,6 +16,8 @@ import AuthInitializer from '@/components/AuthInitializer'
 import { ChatProvider } from '@/components/layout/ChatContext'
 import { CustomSessionProvider } from '@/components/CustomSessionProvider'
 import { NavigationProvider } from '@/contexts/NavigationContext'
+import ScrollWarningFix from '@/components/ScrollWarningFix'
+import SuppressPreloadWarnings from '@/components/SuppressPreloadWarnings'
 
 type Props = ChildrenType & {
   direction: Direction
@@ -37,6 +39,8 @@ const ClientProviders = (props: Props) => {
             <VerticalNavProvider>
               <SettingsProvider settingsCookie={settingsCookie} mode={systemMode}>
                 <ThemeProvider direction={direction} systemMode={systemMode}>
+                  <SuppressPreloadWarnings />
+                  <ScrollWarningFix />
                   <AuthInitializer />
                   {children}
                 </ThemeProvider>
@@ -55,6 +59,8 @@ const ClientProviders = (props: Props) => {
         <VerticalNavProvider>
           <SettingsProvider settingsCookie={settingsCookie} mode={systemMode}>
             <ThemeProvider direction={direction} systemMode={systemMode}>
+              <SuppressPreloadWarnings />
+              <ScrollWarningFix />
               <AuthInitializer />
               {children}
             </ThemeProvider>

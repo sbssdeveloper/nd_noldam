@@ -118,7 +118,7 @@ const FooterNavbar: React.FC<FooterNavbarProps> = ({
   }
 
   return (
-    <Box className='fixed bottom-4 left-0 right-0 bg-none z-50'>
+    <Box className='fixed bottom-4 left-0 right-0 bg-none z-50' data-nextjs-scroll-disabled="true">
       {/* Navigation Icons */}
       <Box className='grid grid-cols-5 max-w-md mx-4 p-1 border border-radius-50 rounded-full'
         sx={{

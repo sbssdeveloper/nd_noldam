@@ -2,8 +2,6 @@
 
 // React Imports
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useNavigation } from '@/contexts/NavigationContext'
 
 // MUI Imports
 import Typography from '@mui/material/Typography'
@@ -28,37 +26,36 @@ const AdminLoginPage = () => {
   const [error, setError] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  const router = useRouter()
-  const { navigate } = useNavigation()
-
   // Check if already authenticated on mount
   useEffect(() => {
     const checkAdminAuth = () => {
+      // Use config cookie names instead of hardcoded ones
       const adminToken = document.cookie
         .split('; ')
-        .find(row => row.startsWith('admin_auth_token='))
+        .find(row => row.startsWith(`${adminConfig.session.cookieName}=`))
         ?.split('=')[1]
 
       const adminUserData = document.cookie
         .split('; ')
-        .find(row => row.startsWith('admin_user_data='))
+        .find(row => row.startsWith(`${adminConfig.session.userDataCookieName}=`))
         ?.split('=')[1]
 
       if (adminToken && adminUserData) {
         try {
           const userData = JSON.parse(decodeURIComponent(adminUserData))
           setIsAuthenticated(true)
-          navigate('/home')
+          // Redirect to admin dashboard home - use window.location for immediate redirect
+          window.location.href = '/home'
         } catch (error) {
-          // Invalid user data, clear cookies
-          document.cookie = 'admin_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-          document.cookie = 'admin_user_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+          // Invalid user data, clear cookies using config names
+          document.cookie = `${adminConfig.session.cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+          document.cookie = `${adminConfig.session.userDataCookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
         }
       }
     }
 
     checkAdminAuth()
-  }, [router])
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,8 +79,8 @@ const AdminLoginPage = () => {
         // Set authentication state
         setIsAuthenticated(true)
 
-        // Redirect to admin home
-        navigate('/home')
+        // Redirect to admin dashboard home - use window.location for immediate redirect
+        window.location.href = '/home'
       } else {
         setError('Invalid admin credentials')
       }

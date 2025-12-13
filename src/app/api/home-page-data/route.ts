@@ -3,19 +3,28 @@ import { verifyToken } from '@/utils/auth'
 import { prisma } from '@/utils/prisma'
 import { BadgeService } from '@/app/web/config/BadgeService'
 
+export const dynamic = 'force-dynamic'
+export const maxDuration = 30 // Increase timeout to 30 seconds for this heavy endpoint
+
 export async function GET(request: NextRequest) {
     try {
       // Temporary fix: Update Type A settings with empty categories to be public
-      await prisma.typeSettings.updateMany({
-        where: {
-          type: 'type_A',
-          scope: 'categories',
-          categories: { isEmpty: true }
-        },
-        data: {
-          scope: 'public'
-        }
-      })
+      // Wrap in try-catch to prevent blocking if this fails
+      try {
+        await prisma.typeSettings.updateMany({
+          where: {
+            type: 'type_A',
+            scope: 'categories',
+            categories: { isEmpty: true }
+          },
+          data: {
+            scope: 'public'
+          }
+        })
+      } catch (updateError) {
+        // Log but don't fail the request
+        console.warn('Failed to update type settings:', updateError)
+      }
 
     // Resolve user (supports cookie or header token). Do not require header exclusively
     let user = null
@@ -406,23 +415,44 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({
+    // Ensure response is properly formatted and sent
+    const responseData = {
       sliderData,
       typeAData,
       typeBData
+    }
+
+    // Create response with proper headers to prevent chunked encoding issues
+    const response = NextResponse.json(responseData, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Connection': 'close' // Close connection after response to prevent chunked encoding issues
+      }
     })
+
+    return response
   } catch (error) {
     console.error('Error fetching home page data:', error)
     console.error('Error details:', {
       message: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : 'No stack trace'
     })
+    
+    // Return error response with proper headers
     return NextResponse.json(
       { 
         error: 'Failed to fetch home page data',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Connection': 'close'
+        }
+      }
     )
   }
 }

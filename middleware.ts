@@ -5,6 +5,17 @@ import { customRoutes } from './src/config/routes'
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Check if user is admin (has admin auth cookie)
+  const adminToken = request.cookies.get('admin_auth_token')?.value
+  const isAdmin = !!adminToken
+
+  // If admin is accessing /home, route to dashboard instead of web home
+  if (isAdmin && pathname === '/home') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/(dashboard)/home'
+    return NextResponse.rewrite(url)
+  }
+
   // Rewrite custom short routes (e.g., /login -> /web/login) while keeping the URL as-is
   for (const [fromPath, toPath] of Object.entries(customRoutes)) {
     // Match exact or nested (e.g., /post/123 if mapped)

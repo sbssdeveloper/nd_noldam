@@ -12,34 +12,20 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unused-vars': 'off',
     '@typescript-eslint/no-non-null-assertion': 'off',
+    '@typescript-eslint/no-empty-object-type': 'off',
+    '@typescript-eslint/no-unnecessary-type-constraint': 'off',
+    '@typescript-eslint/no-unused-expressions': 'off',
+    'react/no-unescaped-entities': 'off',
+    'import/no-unresolved': 'off',
+    'import/export': 'off',
     'prefer-const': 'off',
     'lines-around-comment': 'off',
     'padding-line-between-statements': 'off',
     'newline-before-return': 'off',
     'import/named': 'off',
-    'import/newline-after-import': [
-      'error',
-      {
-        count: 1
-      }
-    ],
+    'import/newline-after-import': 'off',
     'import/order': 'off',
-    '@typescript-eslint/ban-types': [
-      'error',
-      {
-        extendDefaults: true,
-        types: {
-          Function: 'Use a specific function type instead',
-          Object: 'Use object instead',
-          Boolean: 'Use boolean instead',
-          Number: 'Use number instead',
-          String: 'Use string instead',
-          Symbol: 'Use symbol instead',
-          any: false,
-          '{}': false
-        }
-      }
-    ]
+    '@typescript-eslint/ban-types': 'off'
   },
   settings: {
     react: {

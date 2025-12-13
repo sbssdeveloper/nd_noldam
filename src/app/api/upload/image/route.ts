@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir, chmod } from 'fs/promises';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
@@ -76,7 +76,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Create uploads directory if it doesn't exist (cached check)
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'posts');
+    // Use relative path with ../ to work in both dev and production standalone mode
+    // In standalone: process.cwd() is .next/standalone/, so ../.. goes to project root
+    // In dev: process.cwd() is project root, so we check and use appropriate path
+    let uploadsDir: string;
+    if (process.cwd().includes('.next/standalone') || process.cwd().includes('.next\\standalone')) {
+      // Production standalone mode - go up two levels
+      uploadsDir = resolve(process.cwd(), '..', '..', 'public', 'uploads', 'posts');
+    } else {
+      // Development mode - use direct path
+      uploadsDir = resolve(process.cwd(), 'public', 'uploads', 'posts');
+    }
     if (!uploadsDirectoryInitialized) {
       try {
         await mkdir(uploadsDir, { recursive: true });

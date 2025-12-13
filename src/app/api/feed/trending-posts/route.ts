@@ -32,53 +32,37 @@ export async function GET(request: NextRequest) {
     }
 
     // Get trending posts based on likes count (Top 10 most liked posts)
-    // Show posts from last 30 days for better content availability
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    // Get all recent posts (excluding current user's own posts for trending)
+    // Show all posts sorted by likes - no date restriction for trending
     const now = new Date();
-    const whereClause: any = {
-      createdAt: {
-        gte: thirtyDaysAgo
-      },
-      isPublic: true, // Only show public posts
-      // Filter out restricted posts (only show if restrictionUntil is null or has passed)
-      OR: [
-        { restrictionUntil: null },
-        { restrictionUntil: { lte: now } }
-      ]
-    }
-
-    // Exclude current user's own posts from trending (like Instagram)
-    if (currentUserId) {
-      whereClause.userId = { not: currentUserId }
-      // Combine with AND when we have userId filter
-      whereClause.AND = [
-        {
-          createdAt: {
-            gte: thirtyDaysAgo
-          },
-          isPublic: true
-        },
-        {
-          userId: { not: currentUserId }
-        },
-        {
+    
+    // Build where clause - no date restriction, just public and non-restricted posts
+    const whereClause: any = currentUserId 
+      ? {
+          AND: [
+            {
+              isPublic: true
+            },
+            {
+              userId: { not: currentUserId }
+            },
+            {
+              OR: [
+                { restrictionUntil: null },
+                { restrictionUntil: { lte: now } }
+              ]
+            }
+          ]
+        }
+      : {
+          isPublic: true,
           OR: [
             { restrictionUntil: null },
             { restrictionUntil: { lte: now } }
           ]
         }
-      ]
-      // Remove top-level OR since we're using AND now
-      delete whereClause.OR;
-      delete whereClause.createdAt;
-      delete whereClause.isPublic;
-      delete whereClause.userId;
-    }
 
-    const allPosts = await prisma.post.findMany({
+    // Get all posts matching criteria
+    let allPosts = await prisma.post.findMany({
       where: whereClause,
       include: {
         user: {
@@ -116,10 +100,120 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Fallback 1: If no posts found with current filters, try without isPublic restriction
+    // This handles cases where all posts might be private
+    if (allPosts.length === 0) {
+      const fallbackWhereClause: any = currentUserId 
+        ? {
+            AND: [
+              {
+                userId: { not: currentUserId }
+              },
+              {
+                OR: [
+                  { restrictionUntil: null },
+                  { restrictionUntil: { lte: now } }
+                ]
+              }
+            ]
+          }
+        : {
+            OR: [
+              { restrictionUntil: null },
+              { restrictionUntil: { lte: now } }
+            ]
+          }
+
+      allPosts = await prisma.post.findMany({
+        where: fallbackWhereClause,
+        include: {
+          user: {
+            select: {
+              id: true,
+              nickname: true,
+              profileImage: true,
+              city: true,
+              province: true,
+              categories: true,
+              activeCommunityBadge: {
+                select: {
+                  id: true,
+                  name: true,
+                  imageUrl: true
+                }
+              }
+            }
+          },
+          likes: {
+            select: {
+              id: true
+            }
+          },
+          comments: {
+            select: {
+              id: true
+            }
+          },
+          tags: {
+            select: {
+              tag: true
+            }
+          }
+        }
+      })
+    }
+
+    // Fallback 2: If still no posts (maybe all belong to current user), show all posts
+    // This ensures trending section always shows something if posts exist
+    if (allPosts.length === 0 && currentUserId) {
+      allPosts = await prisma.post.findMany({
+        where: {
+          OR: [
+            { restrictionUntil: null },
+            { restrictionUntil: { lte: now } }
+          ]
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nickname: true,
+              profileImage: true,
+              city: true,
+              province: true,
+              categories: true,
+              activeCommunityBadge: {
+                select: {
+                  id: true,
+                  name: true,
+                  imageUrl: true
+                }
+              }
+            }
+          },
+          likes: {
+            select: {
+              id: true
+            }
+          },
+          comments: {
+            select: {
+              id: true
+            }
+          },
+          tags: {
+            select: {
+              tag: true
+            }
+          }
+        }
+      })
+    }
+
     const uniqueUserIds = Array.from(new Set(allPosts.map(post => post.user.id).filter((id): id is number => typeof id === 'number' && !Number.isNaN(id))))
     const badgeMap = await BadgeService.ensureCommunityBadgesForUsers(uniqueUserIds)
 
-    // Sort by likes + comments count (most engagement = trending)
+    // Sort by likes count only (Top 10 most liked posts)
     // If user has interest categories, prioritize posts from users with matching categories
     const postsWithScore = allPosts.map(post => {
       const likesCount = post.likes.length
@@ -130,29 +224,31 @@ export async function GET(request: NextRequest) {
       const matchesInterest = userCategories.length === 0 || 
         postUserCategories.some((cat: any) => userCategories.includes(cat))
 
-      // Boost score if matches interests
-      const interestBoost = matchesInterest ? 0.5 : 0
+      // Boost score if matches interests (small boost to break ties)
+      const interestBoost = matchesInterest ? 0.1 : 0
 
       return {
         ...post,
         likesCount,
         commentsCount,
-        sortScore: likesCount + commentsCount + interestBoost  // Include comments in trending score
+        sortScore: likesCount + interestBoost  // Sort by likes count only
       }
     })
 
-    // Separate posts with engagement vs without engagement
-    const postsWithEngagement = postsWithScore.filter(post => post.likesCount > 0 || post.commentsCount > 0)
-    const postsWithoutEngagement = postsWithScore.filter(post => post.likesCount === 0 && post.commentsCount === 0)
+    // Separate posts with likes vs without likes
+    const postsWithLikes = postsWithScore.filter(post => post.likesCount > 0)
+    const postsWithoutLikes = postsWithScore.filter(post => post.likesCount === 0)
 
-    // Sort posts with engagement by trending score
-    const sortedPostsWithEngagement = postsWithEngagement.sort((a, b) => b.sortScore - a.sortScore)
+    // Sort posts with likes by likes count (descending)
+    const sortedPostsWithLikes = postsWithLikes.sort((a, b) => b.sortScore - a.sortScore)
     
-    // Sort posts without engagement randomly (for fallback)
-    const sortedPostsWithoutEngagement = postsWithoutEngagement.sort(() => Math.random() - 0.5)
+    // Sort posts without likes by creation date (newest first)
+    const sortedPostsWithoutLikes = postsWithoutLikes.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
 
-    // Combine: trending posts first, then random posts as fallback
-    const sortedPosts = [...sortedPostsWithEngagement, ...sortedPostsWithoutEngagement]
+    // Combine: posts with likes first (sorted by likes), then posts without likes (sorted by date)
+    const sortedPosts = [...sortedPostsWithLikes, ...sortedPostsWithoutLikes]
     
     
     const trendingPosts = sortedPosts
@@ -208,10 +304,12 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json(response)
   } catch (error) {
+    console.error('Error fetching trending posts:', error)
     return NextResponse.json(
       { 
         success: false,
-        error: 'Failed to fetch trending posts' 
+        error: 'Failed to fetch trending posts',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )

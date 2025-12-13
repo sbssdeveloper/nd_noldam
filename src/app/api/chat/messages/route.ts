@@ -379,9 +379,10 @@ export async function POST(request: NextRequest) {
       select: { level: true }
     })
 
-    const formattedMessage = {
+    // Create a plain object to avoid serialization issues
+    const formattedMessage: any = {
       id: String(message.id),
-      content: message.content,
+      content: message.content || '',
       type: message.type as 'text' | 'image' | 'file' | 'club',
       sender: {
         id: String(message.sender.id),
@@ -395,23 +396,32 @@ export async function POST(request: NextRequest) {
       isRead: false
     }
 
+    // Always include attachment fields (as null/empty if not present) to avoid serialization issues
     if (message.attachmentUrl) {
-      (formattedMessage as any).attachmentUrl = message.attachmentUrl
-      (formattedMessage as any).fileName = message.fileName
-      (formattedMessage as any).fileSize = message.fileSize
+      formattedMessage.attachmentUrl = String(message.attachmentUrl)
+      formattedMessage.fileName = message.fileName ? String(message.fileName) : null
+      formattedMessage.fileSize = message.fileSize ? Number(message.fileSize) : null
+    } else {
+      formattedMessage.attachmentUrl = null
+      formattedMessage.fileName = null
+      formattedMessage.fileSize = null
     }
 
     if (message.clubMeeting) {
-      (formattedMessage as any).clubMeeting = {
+      formattedMessage.clubMeeting = {
         id: String(message.clubMeeting.id),
-        name: message.clubMeeting.meetingName,
-        image: message.clubMeeting.meetingBackground || '',
+        name: String(message.clubMeeting.meetingName),
+        image: message.clubMeeting.meetingBackground ? String(message.clubMeeting.meetingBackground) : '',
         meetingTime: message.clubMeeting.meetingTime.toISOString()
       }
+    } else {
+      formattedMessage.clubMeeting = null
     }
 
     if (replyToId) {
-      (formattedMessage as any).replyToId = String(replyToId)
+      formattedMessage.replyToId = String(replyToId)
+    } else {
+      formattedMessage.replyToId = null
     }
 
     // CRITICAL FIX: Broadcast message via socket for real-time updates
@@ -445,10 +455,10 @@ export async function POST(request: NextRequest) {
 
         // Broadcast new message to all OTHER users in the room (not sender)
         // Find sender's socket and exclude them
-        const senderSockets = new Set<number>()
+        const senderSockets = new Set<string>()
         io.sockets.sockets.forEach((socket: any) => {
           if (socket.data.userId === userId) {
-            senderSockets.add(socket.id)
+            senderSockets.add(String(socket.id))
           }
         })
         
@@ -492,3 +502,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

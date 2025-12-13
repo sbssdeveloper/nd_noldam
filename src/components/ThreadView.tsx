@@ -25,6 +25,7 @@ import { usePostActions } from '@/hooks/usePostActions'
 import { getTimeAgo } from '@/utils/dateTimeUtils'
 import CommentItem from './CommentItem'
 import FollowButton from './FollowButton'
+import { userApi } from '@/services/userApi'
 
 interface ThreadViewProps {
   isOpen: boolean
@@ -52,9 +53,32 @@ const ThreadView: React.FC<ThreadViewProps> = ({
   const [replyText, setReplyText] = useState('')
   const [currentComment, setCurrentComment] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [isFollowing, setIsFollowing] = useState<boolean>(false)
 
-  const { user } = useAppSelector((state) => state.authReducer)
+  const { user, isAuthenticated } = useAppSelector((state) => state.authReducer)
   const { handleAddComment } = usePostActions()
+
+  // Fetch follow status when post changes
+  useEffect(() => {
+    const fetchFollowStatus = async () => {
+      if (post?.user?.id && user?.id && post.user.id !== user.id && isAuthenticated) {
+        try {
+          const status = await userApi.getFollowStatus(post.user.id)
+          if (status !== null) {
+            setIsFollowing(status)
+          }
+        } catch (error) {
+          // Error fetching follow status
+        }
+      } else {
+        setIsFollowing(false)
+      }
+    }
+
+    if (isOpen && post?.user?.id) {
+      fetchFollowStatus()
+    }
+  }, [isOpen, post?.user?.id, user?.id, isAuthenticated])
 
   // Render ordered content for posts
   const renderOrderedContent = (content: any) => {
@@ -307,17 +331,19 @@ const ThreadView: React.FC<ThreadViewProps> = ({
         margin: '0 auto'
       }}>
         {/* Header */}
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          p: 2,
-          borderBottom: '1px solid #e5e7eb',
-          backgroundColor: 'white',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1
-        }}>
+        <Box 
+          data-nextjs-scroll-disabled="true"
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 2,
+            borderBottom: '1px solid #e5e7eb',
+            backgroundColor: 'white',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1
+          }}>
           <IconButton onClick={onClose}>
             <ArrowBackIcon />
           </IconButton>
@@ -356,6 +382,8 @@ const ThreadView: React.FC<ThreadViewProps> = ({
                       <FollowButton
                         userId={post.user?.id}
                         userNickname={post.user?.nickname}
+                        isFollowing={isFollowing}
+                        onFollowChange={(isFollowing) => setIsFollowing(isFollowing)}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '14px' }}>
                         {getTimeAgo(post.createdAt)}

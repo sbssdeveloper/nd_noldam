@@ -108,6 +108,11 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
                     backgroundColor: 'rgba(0, 0, 0, 0.3)',
                     backdropFilter: 'blur(2px)',
                 }}
+                slotProps={{
+                    root: {
+                        'data-nextjs-scroll-disabled': 'true',
+                    } as any,
+                }}
             >
                 <CircularProgress color="inherit" size={50} />
             </Backdrop>

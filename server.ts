@@ -2,70 +2,59 @@ import { createServer } from 'http'
 import { parse } from 'url'
 import next from 'next'
 import { initializeSocketServer } from './src/lib/socket-server'
-import { createServer as createNetServer } from 'net'
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = process.env.HOSTNAME || 'localhost'
-const defaultPort = parseInt(process.env.PORT || '3000', 10)
+const port = parseInt(process.env.PORT || '3000', 10)
 
-const app = next({ dev, hostname, port: defaultPort })
+console.log(`[Server] Starting... NODE_ENV=${process.env.NODE_ENV}, port=${port}`)
+
+const app = next({ dev })
 const handle = app.getRequestHandler()
 
-// Function to find an available port
-function findAvailablePort(startPort: number): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createNetServer()
-    
-    server.listen(startPort, () => {
-      const port = (server.address() as any)?.port
-      server.close(() => resolve(port))
-    })
-    
-    server.on('error', (err: any) => {
-      if (err.code === 'EADDRINUSE') {
-        // Port is in use, try next port
-        findAvailablePort(startPort + 1).then(resolve).catch(reject)
-      } else {
-        reject(err)
+let httpServer: ReturnType<typeof createServer>
+
+app.prepare()
+  .then(() => {
+    console.log('[Server] Next.js prepared')
+
+    httpServer = createServer(async (req, res) => {
+      try {
+        const parsedUrl = parse(req.url || '', true)
+        await handle(req, res, parsedUrl)
+      } catch (err) {
+        console.error('[Server] Request error:', err)
+        res.statusCode = 500
+        res.end('Internal server error')
       }
     })
+
+    console.log('[Server] Initializing Socket.IO')
+    initializeSocketServer(httpServer)
+
+    httpServer.listen(port, '0.0.0.0', () => {
+      console.log(`> Ready on http://localhost:${port}`)
+      console.log('> Socket.IO initialized')
+    })
   })
+  .catch((err) => {
+    console.error('[Server] Startup failed:', err)
+    process.exit(1)
+  })
+
+/**
+ * Graceful shutdown
+ */
+const shutdown = (signal: string) => {
+  console.log(`[Server] Received ${signal}, shutting down...`)
+  if (httpServer) {
+    httpServer.close(() => {
+      console.log('[Server] HTTP server closed')
+      process.exit(0)
+    })
+  } else {
+    process.exit(0)
+  }
 }
 
-app.prepare().then(async () => {
-  // Find an available port
-  const port = await findAvailablePort(defaultPort)
-  
-  if (port !== defaultPort) {
-    console.log(`⚠️  Port ${defaultPort} is in use, using port ${port} instead`)
-  }
-
-  const httpServer = createServer(async (req, res) => {
-    try {
-      const parsedUrl = parse(req.url || '', true)
-      await handle(req, res, parsedUrl)
-    } catch (err) {
-      console.error('Error occurred handling', req.url, err)
-      res.statusCode = 500
-      res.end('internal server error')
-    }
-  })
-
-  // Initialize Socket.IO server
-  initializeSocketServer(httpServer)
-
-  httpServer
-    .once('error', (err: any) => {
-      if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${port} is already in use. Please free the port or use a different one.`)
-      } else {
-        console.error('Server error:', err)
-      }
-      process.exit(1)
-    })
-    .listen(port, () => {
-      console.log(`> Ready on http://${hostname}:${port}`)
-      console.log('> Socket.io server initialized')
-    })
-})
-
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
