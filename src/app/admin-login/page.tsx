@@ -71,10 +71,15 @@ const AdminLoginPage = () => {
         // Generate token using config
         const adminToken = adminConfig.token.generate()
 
-        // Set admin cookies using config settings
+        // Set admin cookies using config settings with proper attributes for production
         const maxAgeSeconds = Math.floor(adminConfig.session.maxAge / 1000)
-        document.cookie = `${adminConfig.session.cookieName}=${adminToken}; path=/; max-age=${maxAgeSeconds}`
-        document.cookie = `${adminConfig.session.userDataCookieName}=${encodeURIComponent(JSON.stringify(adminUser))}; path=/; max-age=${maxAgeSeconds}`
+        // Check if we're on HTTPS (production) to add Secure flag
+        const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
+        const secureFlag = isSecure ? '; Secure' : ''
+        const sameSiteFlag = '; SameSite=Lax'
+        
+        document.cookie = `${adminConfig.session.cookieName}=${adminToken}; path=/; max-age=${maxAgeSeconds}${sameSiteFlag}${secureFlag}`
+        document.cookie = `${adminConfig.session.userDataCookieName}=${encodeURIComponent(JSON.stringify(adminUser))}; path=/; max-age=${maxAgeSeconds}${sameSiteFlag}${secureFlag}`
 
         // Set authentication state
         setIsAuthenticated(true)

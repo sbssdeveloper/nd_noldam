@@ -506,7 +506,7 @@ const ItemDetailHostPage = () => {
                 setIsDeleteDialogOpen(false)
                 setShowMeetingDetails(false)
                 dispatch(clearMeetingDetail())
-                navigate('/feed/trending-feeds/lifestyle')
+                navigate('/profile')
             }
         } catch (error) {
             // Error deleting meeting
@@ -1001,8 +1001,8 @@ const ItemDetailHostPage = () => {
             {/* Fixed Bottom CTA pill - HOST VERSION (visible while scrolling) */}
             <Box className="fixed gap-2 left-0 right-0 bottom-4 z-[60] flex justify-center px-4 pointer-events-none">
                 <Box
-                    // className="pointer-events-auto cursor-pointer"
-                    className={`${meetingData.status === 'completed' ? 'cursor-not-allowed' : 'pointer-events-auto cursor-pointer'}`}
+                    className="pointer-events-auto cursor-pointer"
+                    // className={`${meetingData.status === 'completed' ? 'cursor-not-allowed' : 'pointer-events-auto cursor-pointer'}`}
                     onClick={openMeetingDetails}
                     sx={{
                         width: '100%',
@@ -1019,7 +1019,8 @@ const ItemDetailHostPage = () => {
                     }}
                 >
                     {/* Left side - Image and Title */}
-                    <Box className="flex items-center min-w-0 flex-1">
+                    <Box className="flex items-center min-w-0 flex-1 gap-1">
+                        {meetingData.meetingBackground ? (
                         <img
                             src={meetingData.meetingBackground || meetingData.user.profileImage || null}
                             alt={meetingData.meetingName}
@@ -1028,6 +1029,9 @@ const ItemDetailHostPage = () => {
                             className="object-cover rounded-full flex-shrink-0"
                             style={{ marginRight: '8px' }}
                         />
+                        ):(
+                            <Box className="object-cover rounded-full flex-shrink-0 w-6 h-6 bg-gray-200"></Box>
+                        )}
                         <Typography
                             variant="body2"
                             className="font-bold leading-[1.2]"

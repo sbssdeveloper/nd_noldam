@@ -50,7 +50,7 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import CreditScoreOutlinedIcon from '@mui/icons-material/CreditScoreOutlined'
 
-import yogaImage from '../../../assets/iconify-icons/yogaImage.jpg'
+// import yogaImage from '../../../assets/iconify-icons/yogaImage.jpg'
 
 import React, { useEffect, useState } from 'react'
 import { meetingsApi, Meeting, MeetingReview } from '@/services/meetingsApi'

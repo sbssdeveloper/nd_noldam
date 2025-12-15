@@ -3756,9 +3756,6 @@ const MyPostDetailMainPage = React.memo((props: {}) => {
                   )}
 
 
-
-                  {/* Tagged Tab - Posts where I am @mentioned */}
-
                   {feedTab === 2 && (
 
                     <Box className='mt-3'>
@@ -4060,13 +4057,11 @@ const MyPostDetailMainPage = React.memo((props: {}) => {
 
         </Box>
 
-
-
         {/* Floating create button (shown based on tab configuration) */}
 
         {floatingButtonConfig.show && !isFollowOpen && (
 
-          <Box className='fixed right-4 transform z-30' sx={{ bottom: { xs: 88, md: 40 } }}>
+          <Box className='fixed right-4 transform z-[60]' sx={{ bottom: { xs: 88, md: 40 } }}>
 
             <Button
               variant='contained'

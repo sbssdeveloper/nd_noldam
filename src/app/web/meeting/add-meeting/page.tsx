@@ -91,7 +91,7 @@ const AddClubPage = () => {
     { key: 'participants', label: '수강 대상', handler: 'handleParticipantsTabClick' },
     { key: 'place', label: '함께 할 내용 ', handler: 'handlePlaceTabClick' },
     { key: 'instructor', label: '호스트 소개', handler: 'handleInstructorTabClick' },
-    { key: 'List5', label: '호스트 환영인사', handler: 'handleParticipantsTabClick' },
+    { key: 'HostWelcome', label: '호스트 환영인사', handler: 'handleHostWelcomeTabClick' },
   ])
   const [draggedTabIndex, setDraggedTabIndex] = useState<number | null>(null)
   const [touchDragOverIndex, setTouchDragOverIndex] = useState<number | null>(null)
@@ -1584,7 +1584,7 @@ const AddClubPage = () => {
       heading.style.color = headingStyle.color
       heading.style.display = 'block'
       heading.style.marginBottom = '4px'
-      heading.textContent = '모임에 대해'
+      heading.textContent = '퇴근 후 1시간 러닝 같이 해요 (초보 환영)\n무엇을 하는지 먼저 보여주세요 · 20~35자'
       container.appendChild(heading)
 
       const body = document.createElement('div')
@@ -1593,8 +1593,62 @@ const AddClubPage = () => {
       body.style.fontFamily = bodyStyle.fontFamily
       body.style.color = bodyStyle.color
       body.style.display = 'block'
-      body.textContent = '모임 설명을 입력하세요'
+      body.textContent = '이 모임은 ___을/를 ___해요\n진행: ___ → ___ → 마무리\n준비물/비용: ___\n장소/만남: ___ (도착: __분 전)'
       container.appendChild(body)
+
+      const br = document.createElement('br')
+      container.appendChild(br)
+
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        range.deleteContents()
+        range.insertNode(container)
+
+        // Add a line break after container for clear cursor positioning
+        const extraBr = document.createElement('br')
+        container.parentNode?.insertBefore(extraBr, container.nextSibling)
+
+        range.setStartAfter(extraBr)
+        range.collapse(true)
+        selection.removeAllRanges()
+        selection.addRange(range)
+        savedSelectionRef.current = range.cloneRange()
+      }
+    }
+    setSelectedTab('about')
+  }
+
+  const handleHostWelcomeTabClick = () => {
+    if (editorRef.current) {
+      editorRef.current.focus()
+      if (insertionTarget === 'start') ensureSelectionAtStart()
+      else if (insertionTarget === 'end') ensureSelectionAtEnd()
+      restoreSelection()
+
+      const container = document.createElement('div')
+      container.style.margin = '16px 0'
+      container.setAttribute('data-section', 'about')
+
+      const heading = document.createElement('div')
+      const headingStyle = textStylePresets['제목']
+      heading.style.fontSize = headingStyle.fontSize
+      heading.style.fontFamily = headingStyle.fontFamily
+      heading.style.fontWeight = headingStyle.fontWeight
+      heading.style.color = headingStyle.color
+      heading.style.display = 'block'
+      heading.style.marginBottom = '4px'
+      heading.textContent = '환영인사를 입력해주세요.'
+      container.appendChild(heading)
+
+      // const body = document.createElement('div')
+      // const bodyStyle = textStylePresets['본문']
+      // body.style.fontSize = bodyStyle.fontSize
+      // body.style.fontFamily = bodyStyle.fontFamily
+      // body.style.color = bodyStyle.color
+      // body.style.display = 'block'
+      // body.textContent = '이 모임은 ___을/를 ___해요\n진행: ___ → ___ → 마무리\n준비물/비용: ___\n장소/만남: ___ (도착: __분 전)'
+      // container.appendChild(body)
 
       const br = document.createElement('br')
       container.appendChild(br)
@@ -1637,7 +1691,7 @@ const AddClubPage = () => {
       title.style.color = titleStyle.color
       title.style.display = 'block'
       title.style.marginBottom = '12px'
-      title.textContent = '강사 이름'
+      title.textContent = '1문장 / 30자 이내로 만들어주세요 직함보다는 “무엇을 하는 사람인지”만 전달해 주시는 것을 추천드려요.'
       container.appendChild(title)
 
       // Field 2: Image placeholder with file input functionality
@@ -1843,7 +1897,7 @@ const AddClubPage = () => {
       heading.style.color = headingStyle.color
       heading.style.display = 'block'
       heading.style.marginBottom = '8px'
-      heading.textContent = '모임 장소'
+      heading.textContent = `'모임 때 같이 할 내용' 처럼 무엇을 함께 하는지 한 줄로 적어주세요`
       container.appendChild(heading)
 
       const body = document.createElement('div')
@@ -1852,7 +1906,7 @@ const AddClubPage = () => {
       body.style.fontFamily = bodyStyle.fontFamily
       body.style.color = bodyStyle.color
       body.style.display = 'block'
-      body.textContent = '장소 정보를 입력하세요'
+      body.textContent = '오늘 같이 하는 일: ___\n진행: ___ → ___ → 마무리\n시간/준비물: ___\n참여 방식: ___'
       container.appendChild(body)
 
       const br = document.createElement('br')
@@ -1895,7 +1949,7 @@ const AddClubPage = () => {
       heading.style.color = headingStyle.color
       heading.style.display = 'block'
       heading.style.marginBottom = '8px'
-      heading.textContent = '참여자 정보'
+      heading.textContent = '이런 분께 추천해요 처럼 짧게 한 줄로 적어주세요'
       container.appendChild(heading)
 
       const body = document.createElement('div')
@@ -1904,7 +1958,7 @@ const AddClubPage = () => {
       body.style.fontFamily = bodyStyle.fontFamily
       body.style.color = bodyStyle.color
       body.style.display = 'block'
-      body.textContent = '참여자 관련 내용을 입력하세요'
+      body.textContent = '이런 분께 추천해요 (2~4개)\n\n• ___\n• ___\n• ___'
       container.appendChild(body)
 
       const br = document.createElement('br')
@@ -1937,6 +1991,7 @@ const AddClubPage = () => {
       case 'handleInstructorTabClick': return handleInstructorTabClick
       case 'handlePlaceTabClick': return handlePlaceTabClick
       case 'handleParticipantsTabClick': return handleParticipantsTabClick
+      case 'handleHostWelcomeTabClick': return handleHostWelcomeTabClick
       default: return () => { }
     }
   }
